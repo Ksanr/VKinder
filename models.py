@@ -1,6 +1,6 @@
 import enum
 
-from sqlalchemy import create_engine, Column, VARCHAR, ForeignKey, BIGINT, SMALLINT, TEXT, Boolean, TIMESTAMP
+from sqlalchemy import create_engine, Column, VARCHAR, ForeignKey, BIGINT, SMALLINT, TEXT, Boolean, TIMESTAMP, PrimaryKeyConstraint
 from dotenv import load_dotenv
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from sqlalchemy.types import Enum as SQLEnum
@@ -38,24 +38,27 @@ class Interests(Base):
 
 class UsersInterest(Base):
     __tablename__ = 'users_interest'
-    id_user_interest = Column(BIGINT, primary_key=True) # id записи
+    # id_user_interest = Column(BIGINT, primary_key=True) # id записи
     id_VK_user = Column(BIGINT, ForeignKey('users.id_VK_user'))  # id пользователя ВК
     id_interest = Column(BIGINT, ForeignKey('interests.id_interest'))  # id интереса
+    __table_args__ = (PrimaryKeyConstraint('id_VK_user', 'id_interest'),)
     interest = relationship('Interests', back_populates='interest')
     user = relationship('Users', back_populates='interest')
 
 class BlackList(Base):
     __tablename__ = 'blacklist'
-    id_black_user = Column(BIGINT, primary_key=True)    # id записи
+    # id_black_user = Column(BIGINT, primary_key=True)    # id записи
     id_VK_user = Column(BIGINT, ForeignKey('users.id_VK_user')) # id пользователя ВК
     id_blocked = Column(BIGINT, ForeignKey('users.id_VK_user')) # id заблокированного пользователя ВК
+    __table_args__ = (PrimaryKeyConstraint('id_VK_user', 'id_blocked'),)
     user = relationship('Users', back_populates='blacklist')
 
 class Favorites(Base):
     __tablename__ = 'favorites'
-    id_favorite_user = Column(BIGINT, primary_key=True)  # id записи
+    # id_favorite_user = Column(BIGINT, primary_key=True)  # id записи
     id_VK_user = Column(BIGINT, ForeignKey('users.id_VK_user')) # id пользователя ВК
     id_target = Column(BIGINT, ForeignKey('users.id_VK_user')) # id "избранного" пользователя ВК
+    __table_args__ = (PrimaryKeyConstraint('id_VK_user', 'id_target'),)
     user = relationship('Users', back_populates='favorite')
 
 class Photos(Base):
@@ -75,6 +78,12 @@ class Matches(Base):
     matched_at = Column(TIMESTAMP)                   # метка добавления совпадения в таблицу
     match_shown = Column(Boolean)                    # Совпадение показано?
     user = relationship('Users', back_populates='match')
+
+
+
+# Удаление таблиц, созданных ранее с другим набором полей
+# после отладки закомментировать/удалить
+Base.metadata.drop_all(engine)
 
 # Создание таблиц в БД
 Base.metadata.create_all(engine)
