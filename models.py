@@ -34,7 +34,7 @@ class Interests(Base):
     __tablename__ = 'interests'
     id_interest = Column(BIGINT, primary_key=True)  # id интереса
     interest_name = Column(VARCHAR)                 # название интереса
-    interest = relationship('User_interest', back_populates='interest')
+    interest = relationship('UsersInterest', back_populates='interest')
 
 class UsersInterest(Base):
     __tablename__ = 'users_interest'
@@ -49,7 +49,7 @@ class BlackList(Base):
     __tablename__ = 'blacklist'
     # id_black_user = Column(BIGINT, primary_key=True)    # id записи
     id_VK_user = Column(BIGINT, ForeignKey('users.id_VK_user')) # id пользователя ВК
-    id_blocked = Column(BIGINT, ForeignKey('users.id_VK_user')) # id заблокированного пользователя ВК
+    id_blocked = Column(BIGINT) # id заблокированного пользователя ВК
     __table_args__ = (PrimaryKeyConstraint('id_VK_user', 'id_blocked'),)
     user = relationship('Users', back_populates='blacklist')
 
@@ -57,7 +57,7 @@ class Favorites(Base):
     __tablename__ = 'favorites'
     # id_favorite_user = Column(BIGINT, primary_key=True)  # id записи
     id_VK_user = Column(BIGINT, ForeignKey('users.id_VK_user')) # id пользователя ВК
-    id_target = Column(BIGINT, ForeignKey('users.id_VK_user')) # id "избранного" пользователя ВК
+    id_target = Column(BIGINT) # id "избранного" пользователя ВК
     __table_args__ = (PrimaryKeyConstraint('id_VK_user', 'id_target'),)
     user = relationship('Users', back_populates='favorite')
 
@@ -74,7 +74,7 @@ class Matches(Base):
     __tablename__ = 'matches'
     id_match = Column(BIGINT, primary_key=True)      # id записи совпадения
     id_VK_user = Column(BIGINT, ForeignKey('users.id_VK_user')) # id пользователя ВК - "инициатора"
-    id_target_user = Column(BIGINT, ForeignKey('users.id_VK_user')) # id предлагаемого пользователя
+    id_target_user = Column(BIGINT) # id предлагаемого пользователя
     matched_at = Column(TIMESTAMP)                   # метка добавления совпадения в таблицу
     match_shown = Column(Boolean)                    # Совпадение показано?
     user = relationship('Users', back_populates='match')
