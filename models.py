@@ -80,10 +80,10 @@ class Matches(Base):
     user = relationship('Users', back_populates='match')
 
 
-
+if __name__ == '__main__':
 # Удаление таблиц, созданных ранее с другим набором полей
 # после отладки закомментировать/удалить
-Base.metadata.drop_all(engine)
+    Base.metadata.drop_all(engine)
 
 # Создание таблиц в БД
-Base.metadata.create_all(engine)
+    Base.metadata.create_all(engine)
