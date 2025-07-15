@@ -1,11 +1,10 @@
 from datetime import datetime
 from dotenv import load_dotenv
-import os
+import os, logging
 
 from models import Users, Interests, UsersInterest, BlackList, Favorites, Photos, Matches
-from sqlalchemy import create_engine, distinct
-from sqlalchemy.orm import declarative_base, sessionmaker, relationship
-from sqlalchemy.types import Enum as SQLEnum
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 from bot import VKinderBot as VKBot
 
 from random import randrange
@@ -19,7 +18,12 @@ engine = create_engine(os.getenv('DB_URL'))
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
-def get_user(user_id: int) -> Users:
+TOKEN = os.getenv('VK_GROUP_TOKEN')
+vk = vk_api.VkApi(token=TOKEN)
+longpoll = VkLongPoll(vk)
+
+logger = logging.getLogger(__name__)
+def get_user(user_id: int):
     """
     Получение пользователя по ID
     :param user_id: ID пользователя
@@ -30,7 +34,8 @@ def get_user(user_id: int) -> Users:
         user = session.get(Users, user_id)
         return user
     except Exception as e:
-        return '❌ Ошибка при получении информации о пользователе из БД'
+        logger.error(f'Ошибка при получении информации о пользователе: {e}')
+        raise ValueError(f'Ошибка при получении информации о пользователе: {e}')
 
 def create_new_user(user_id: int, name: str = None, surname: str = None,
                     age: int = None, gender: str = None, city: str = None):
@@ -45,13 +50,15 @@ def create_new_user(user_id: int, name: str = None, surname: str = None,
     :return:
     """
     try:
-        if not all((name, surname, age, gender, city)):
-            vk_user = VKBot.get_user_info(event.user_id)
-        name = name or vk_user['first_name']
-        surname = surname or vk_user['last_name']
-        age = age or vk_user['age']
-        gender = gender or vk_user['sex']
-        city = city or vk_user['city']
+        # TODO: при отсутствии данных запросить из ВК
+        # if not all((name, surname, age, gender, city)):
+        #     print(user_id)
+        #     vk_user = VKBot.get_user_info(user_id)
+        # name = name or vk_user['first_name']
+        # surname = surname or vk_user['last_name']
+        # age = age or vk_user['age']
+        # gender = gender or vk_user['sex']
+        # city = city or vk_user['city']
 
         new_user = Users(id_VK_user=user_id, name=name, surname=surname, age=age,
                          gender=gender, city=city)
@@ -59,7 +66,8 @@ def create_new_user(user_id: int, name: str = None, surname: str = None,
         session.commit()
         return '✅ Создан новый пользователь.'
     except Exception as e:
-        return '❌ Ошибка при сохранении пользователя в БД'
+        logger.error(f'Ошибка при сохранении пользователя: {e}')
+        raise ValueError(f'Ошибка при сохранении пользователя: {e}')
 
 def get_favorites(user_id: int):
     """
@@ -74,7 +82,8 @@ def get_favorites(user_id: int):
             return users
         return '📋 Ваш список избранного пуст'
     except Exception as e:
-        return '❌ Ошибка при получении списка избранных из БД'
+        logger.error(f'Ошибка при получении списка избранных: {e}')
+        raise ValueError(f'Ошибка при получении списка избранных: {e}')
 
 def add_favorite(user_id: int, target_id: int):
     """
@@ -87,20 +96,22 @@ def add_favorite(user_id: int, target_id: int):
     try:
         if target_id in get_favorites(user_id):
             return '⚠️ Этот пользователь уже в избранном!'
-        # При отсутствии избранного пользователя создаём его
-        user = get_user(target_id)
-        if not user:
-            # Получаем данные об избранном пользователе из ВК
-            user = VKBot.get_user_info(target_id)
-            create_new_user(user['id'], user['first_name'], user['last_name'],
-                            user['age'], user['sex'], user['city'])
+        # TODO: При отсутствии избранного пользователя создать его
+        # user = get_user(target_id)
+        # if not user:
+        #     # Получаем данные об избранном пользователе из ВК
+        #     user = VKBot.get_user_info(target_id)
+        #     create_new_user(user['id'], user['first_name'], user['last_name'],
+        #                     user['age'], user['sex'], user['city'])
+
         # Добавление пользователя в избранные
         new_favorite = Favorites(id_VK_user=user_id, id_target=target_id)
         session.add(new_favorite)
         session.commit()
         return '✅ Пользователь добавлен в избранное!'
     except Exception as e:
-        return '❌ Ошибка при сохранении пользователя в список избранных в БД'
+        logger.error(f'Ошибка при cохранении пользователя в список избранных: {e}')
+        raise ValueError(f'Ошибка при сохранении пользователя в список избранных: {e}')
 
 def get_blacklist(user_id: int):
     """
@@ -116,33 +127,36 @@ def get_blacklist(user_id: int):
             return users
         return '📋 Ваш чёрный список пуст'
     except Exception as e:
-        return '❌ Ошибка при получении чёрного списка из БД'
+        logger.error(f'Ошибка при получении чёрного списка: {e}')
+        raise ValueError(f'Ошибка при получении чёрного списка: {e}')
 
 def add_blacklist(user_id: int, blocked_id: int):
     """
     Добавление пользователя в черный список
     :param user_id: ID пользователя
-    :param target_id: ID пользователя для блокировки
+    :param blocked_id: ID пользователя для блокировки
     :return:
     """
     # проверяем наличие пользователя в чёрном списке
     try:
         if blocked_id in get_blacklist(user_id):
             return '⚠️ Этот пользователь уже в чёрном списке!'
-        # При отсутствии избранного пользователя создаём его
-        user = get_user(blocked_id)
-        if not user:
-            # Получаем данные об избранном пользователе
-            user = VKBot.get_user_info(blocked_id)
-            create_new_user(user['id'], user['first_name'], user['last_name'],
-                            user['age'], user['sex'], user['city'])
+        # TODO: При отсутствии избранного пользователя создать его
+        # user = get_user(blocked_id)
+        # if not user:
+        #     # Получаем данные об избранном пользователе
+        #     user = VKBot.get_user_info(blocked_id)
+        #     create_new_user(user['id'], user['first_name'], user['last_name'],
+        #                     user['age'], user['sex'], user['city'])
+
         # Добавление пользователя в избранные
         new_black_user = BlackList(id_VK_user=user_id, id_blocked=blocked_id)
         session.add(new_black_user)
         session.commit()
         return '✅ Пользователь добавлен в чёрный список!'
     except Exception as e:
-        return '❌ Ошибка при сохранении пользователя в чёрный список в БД'
+        logger.error(f'Ошибка при сохранении пользователя в чёрный список: {e}')
+        raise ValueError(f'Ошибка при сохранении пользователя в чёрный список: {e}')
 
 def get_photo(user_id: int, count: int = 3):
     """
@@ -159,7 +173,8 @@ def get_photo(user_id: int, count: int = 3):
                   .all())
         return photos
     except Exception as e:
-        return '❌ Ошибка при получении фото из БД'
+        logger.error(f'Ошибка при получении фото: {e}')
+        raise ValueError(f'Ошибка при получении фото: {e}')
 
 def add_photo(user_id: int, url: str, likes: int, is_profile_photo: bool):
     """
@@ -177,7 +192,8 @@ def add_photo(user_id: int, url: str, likes: int, is_profile_photo: bool):
         session.commit()
         return '✅ Фото успешно добавлено'
     except Exception as e:
-        return '❌ Ошибка при сохранении фото в БД'
+        logger.error(f'Ошибка при сохранении фото: {e}')
+        raise ValueError(f'Ошибка при сохранении фото: {e}')
 
 def get_match(user_id: int):
     """
@@ -196,7 +212,8 @@ def get_match(user_id: int):
             return match
         return '😔 Никого не нашлось.'
     except Exception as e:
-        return '❌ Ошибка при получении совпадений из БД'
+        logger.error(f'Ошибка при получении совпадений: {e}')
+        raise ValueError(f'Ошибка при получении совпадений: {e}')
 
 def add_match(user_id: int, target_id: int, matched_at: datetime = None,
               match_shown: bool = False):
@@ -217,7 +234,8 @@ def add_match(user_id: int, target_id: int, matched_at: datetime = None,
         session.commit()
         return '✅ Совпадение успешно добавлено'
     except Exception as e:
-        return '❌ Ошибка при сохранении совпадения в БД'
+        logger.error(f'Ошибка при сохранении совпадений: {e}')
+        raise ValueError(f'Ошибка при сохранении совпадения: {e}')
 
 def get_interest(id_interest: int = None, interest_name : str = None):
     """
@@ -243,7 +261,8 @@ def get_interest(id_interest: int = None, interest_name : str = None):
             return interest
         return '😔 Интереса по имени не нашлось.'
     except Exception as e:
-        return '❌ Ошибка при получении интереса из БД'
+        logger.error(f'Ошибка при получении интереса: {e}')
+        raise ValueError(f'Ошибка при получении интереса: {e}')
 
 def add_interest(interest_name: str):
     """
@@ -257,7 +276,8 @@ def add_interest(interest_name: str):
         session.commit()
         return '✅ Интерес успешно добавлен в БД'
     except Exception as e:
-        return '❌ Ошибка при сохранении интереса в БД'
+        logger.error(f'Ошибка при сохранении интереса: {e}')
+        raise ValueError(f'Ошибка при сохранении интереса: {e}')
 
 def get_user_interest(user_id: int):
     """
@@ -274,7 +294,8 @@ def get_user_interest(user_id: int):
             return interests
         return '😔 У данного пользователя интересов не нашлось.'
     except Exception as e:
-        return '❌ Ошибка при получении интересов пользователя из БД'
+        logger.error(f'Ошибка при получении интересов пользователя: {e}')
+        raise ValueError(f'Ошибка при получении интересов пользователя: {e}')
 
 def add_user_interest(user_id: int, id_interest: int = None,
                       interest_name: str = None):
@@ -301,7 +322,8 @@ def add_user_interest(user_id: int, id_interest: int = None,
         session.commit()
         return '✅ Интерес пользователя успешно добавлен в БД'
     except Exception as e:
-        return '❌ Ошибка при сохранении интереса пользователя в БД'
+        logger.error(f'Ошибка при сохранении интересов пользователя: {e}')
+        raise ValueError(f'Ошибка при сохранении интереса пользователя: {e}')
 
 
 def write_msg(user_id, message):
@@ -309,11 +331,6 @@ def write_msg(user_id, message):
 
 
 if __name__ == '__main__':
-
-    TOKEN = os.getenv('VK_GROUP_TOKEN')
-    vk = vk_api.VkApi(token=TOKEN)
-    longpoll = VkLongPoll(vk)
-
     for event in longpoll.listen():
         if event.type == VkEventType.MESSAGE_NEW:
 
