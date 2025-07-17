@@ -383,6 +383,30 @@ def find_match(user_id: int):
         logger.error(f'Ошибка при поиске совпадений: {e}')
         raise ValueError(f'Ошибка при поиске совпадений: {e}')
 
+def get_user_full_info(user_id: int):
+    """
+    Получение полной информации о пользователе
+    :param user_id: ID пользователя
+    :return:
+    """
+    try:
+        user = get_user(user_id)
+        photos = get_photo(user_id)
+        interests = get_interest(user_id)
+
+        return {'id_VK_user': user_id,
+                'name': user.name,
+                'surname': user.surname,
+                'age': user.age,
+                'gender': user.gender,
+                'city': user.city,
+                'photos': photos,
+                'interests': interests
+                }
+    except Exception as e:
+        logger.error(f'Ошибка при получении полной информации о пользователе: {e}')
+        raise ValueError(f'Ошибка при получении полной информации о пользователе: {e}')
+
 
 def write_msg(user_id, message):
     vk.method('messages.send', {'user_id': user_id, 'message': message,  'random_id': randrange(10 ** 7),})
