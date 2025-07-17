@@ -5,7 +5,7 @@
 
 .env - файл с настройками для подключений
 
-* TVK_GROUP_TOKEN=Токен_группы_для_вашего_бота
+* VK_GROUP_TOKEN=Токен_группы_для_вашего_бота
 * VK_USER_TOKEN=Токен_пользователя_для_вашего_бота
 * DB_URL=postgresql://user:password@host/database
 

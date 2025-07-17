@@ -110,7 +110,7 @@ def add_favorite(user_id: int, target_id: int):
         session.commit()
         return '✅ Пользователь добавлен в избранное!'
     except Exception as e:
-        logger.error(f'Ошибка при cохранении пользователя в список избранных: {e}')
+        logger.error(f'Ошибка при сохранении пользователя в список избранных: {e}')
         raise ValueError(f'Ошибка при сохранении пользователя в список избранных: {e}')
 
 def get_blacklist(user_id: int):
@@ -144,7 +144,7 @@ def add_blacklist(user_id: int, blocked_id: int):
         # TODO: При отсутствии избранного пользователя создать его
         # user = get_user(blocked_id)
         # if not user:
-        #     # Получаем данные об избранном пользователе
+        #     # Получаем данные об пользователе, добавляемом в ЧС
         #     user = VKBot.get_user_info(blocked_id)
         #     create_new_user(user['id'], user['first_name'], user['last_name'],
         #                     user['age'], user['sex'], user['city'])
@@ -324,6 +324,64 @@ def add_user_interest(user_id: int, id_interest: int = None,
     except Exception as e:
         logger.error(f'Ошибка при сохранении интересов пользователя: {e}')
         raise ValueError(f'Ошибка при сохранении интереса пользователя: {e}')
+
+def find_match(user_id: int):
+    """
+    Поиск совпадений по базе данных
+    :param user_id: ID пользователя
+    :return:
+    """
+    try:
+        # получаем информацию о пользователе
+        user = get_user(user_id)
+        if not user:
+            return '😔 Не удалось получить информацию о вашем профиле'
+
+        # получаем информацию об интересах пользователя
+        user_interests = get_user_interest(user_id)
+
+        # Определяем параметры поиска
+        search_sex = ('женский', 'мужской')[user.gender == 'женский']
+        age_from = max(18, user.age - 5) if user.age else 18
+        age_to = min(80, user.age + 5) if user.age else 35
+        city = user.city
+
+        # Поиск пользователей без учёта интересов
+        found_users = session.query(Users).filter(Users.gender == search_sex,
+                                                  Users.age >= age_from,
+                                                  Users.age <= age_to,
+                                                  Users.city == city).all()
+
+        if not found_users:
+            return '😔 Никого не нашлось. Попробуйте позже'
+
+        # Составляем список из найденных пользователей со схожими интересами
+        if '😔' in user_interests:
+            interest_users = found_users
+        else:
+            interest_users = []
+            for found_user in found_users:
+                for found_user_interest in get_user_interest(found_user.id_VK_user):
+                    if found_user_interest in user_interests:
+                        interest_users.append(found_user)
+                        break
+
+        if not interest_users:
+            return '😔 С Вашими интересами никого не нашлось. Попробуйте позже'
+
+        # Сохраняем результат в БД
+        for found_user in interest_users: # Можно сохранить пользователей без учёта интересов заменив interest_users на found_users
+            # проверяем наличие аналогичных записей, сделанных ранее
+            match = session.query(Matches).filter(Matches.id_VK_user == user_id,
+                                                  Matches.id_target_user == found_user.id_VK_user).first()
+            if not match:
+                add_match(user_id, found_user.id_VK_user, datetime.now(), False)
+
+        # Возвращаем первое совпадение
+        return get_match(user_id)
+    except Exception as e:
+        logger.error(f'Ошибка при поиске совпадений: {e}')
+        raise ValueError(f'Ошибка при поиске совпадений: {e}')
 
 
 def write_msg(user_id, message):
