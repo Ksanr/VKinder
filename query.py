@@ -2,7 +2,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 import os, logging
 
-from models import Users, Interests, UsersInterest, BlackList, Favorites, Photos, Matches
+from models import Users, Interests, UsersInterest, BlackList, Favorites, Photos, Matches, Gender
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from bot import VKinderBot as VKBot
@@ -38,7 +38,7 @@ def get_user(user_id: int):
         raise ValueError(f'Ошибка при получении информации о пользователе: {e}')
 
 def create_new_user(user_id: int, name: str = None, surname: str = None,
-                    age: int = None, gender: str = None, city: str = None):
+                    age: int = None, gender: Gender = None, city: str = None):
     """
     Создание нового пользователя
     :param user_id: ID пользователя
@@ -50,7 +50,7 @@ def create_new_user(user_id: int, name: str = None, surname: str = None,
     :return:
     """
     try:
-        # TODO: при отсутствии данных запросить из ВК
+        # при отсутствии данных можно запросить из ВК
         # if not all((name, surname, age, gender, city)):
         #     print(user_id)
         #     vk_user = VKBot.get_user_info(user_id)
@@ -60,6 +60,10 @@ def create_new_user(user_id: int, name: str = None, surname: str = None,
         # gender = gender or vk_user['sex']
         # city = city or vk_user['city']
 
+        user = get_user(user_id)
+        if user:
+            return f'⚠️ Пользователь с id:{user_id} уже существует в БД'
+
         new_user = Users(id_VK_user=user_id, name=name, surname=surname, age=age,
                          gender=gender, city=city)
         session.add(new_user)
@@ -68,6 +72,36 @@ def create_new_user(user_id: int, name: str = None, surname: str = None,
     except Exception as e:
         logger.error(f'Ошибка при сохранении пользователя: {e}')
         raise ValueError(f'Ошибка при сохранении пользователя: {e}')
+
+
+def update_user(user_id: int, name: str = None, surname: str = None,
+                    age: int = None, gender: str = None, city: str = None):
+    """
+    Обновление данных о пользователе
+    :param user_id: ID пользователя
+    :param name: имя
+    :param surname: фамилия
+    :param age: возраст
+    :param gender: пол
+    :param city: город
+    :return:
+    """
+    try:
+        user = get_user(user_id)
+        if not user:
+            return f'😔 Пользователь с id:{user_id} не существует в БД'
+
+        if name: user.name = name
+        if surname: user.surname=surname
+        if age: user.age = age
+        if gender: user.gender = gender
+        if city: user.city = city
+        session.add(user)
+        session.commit()
+        return '✅ Данные о пользователе обновлены.'
+    except Exception as e:
+        logger.error(f'Ошибка при обновлении данных пользователя: {e}')
+        raise ValueError(f'Ошибка при обновлении данных пользователя: {e}')
 
 def get_favorites(user_id: int):
     """
@@ -96,7 +130,7 @@ def add_favorite(user_id: int, target_id: int):
     try:
         if target_id in get_favorites(user_id):
             return '⚠️ Этот пользователь уже в избранном!'
-        # TODO: При отсутствии избранного пользователя создать его
+        # При отсутствии избранного пользователя можно создать его
         # user = get_user(target_id)
         # if not user:
         #     # Получаем данные об избранном пользователе из ВК
@@ -141,7 +175,7 @@ def add_blacklist(user_id: int, blocked_id: int):
     try:
         if blocked_id in get_blacklist(user_id):
             return '⚠️ Этот пользователь уже в чёрном списке!'
-        # TODO: При отсутствии избранного пользователя создать его
+        # При отсутствии пользователя для ЧС можно создать его
         # user = get_user(blocked_id)
         # if not user:
         #     # Получаем данные об пользователе, добавляемом в ЧС
@@ -203,7 +237,7 @@ def get_match(user_id: int):
     """
     try:
         match = (session.query(Matches)
-                 .filter(Matches.id_VK_user == user_id, Matches.match_shown == False)
+                 .filter(Matches.id_VK_user == user_id, Matches.match_shown == False or Matches.match_shown == None)
                  .first())
         if match:
             match.match_shown = True
@@ -251,14 +285,13 @@ def get_interest(id_interest: int = None, interest_name : str = None):
             #             .first())
             interest = session.get(Interests.interest_name, id_interest)
             if interest:
-                return interest
+                return interest[0]
             return '😔 Интереса по ID не нашлось.'
-        # interest = (session.query(Interests.id_interest)
-        #             .filter_by(interest_name=interest_name)
-        #             .first())
-        interest = session.get(Interests.id_interest, interest_name)
+        interest = (session.query(Interests.id_interest)
+                    .filter_by(interest_name=interest_name)
+                    .first())
         if interest:
-            return interest
+            return interest[0]
         return '😔 Интереса по имени не нашлось.'
     except Exception as e:
         logger.error(f'Ошибка при получении интереса: {e}')
@@ -271,6 +304,8 @@ def add_interest(interest_name: str):
     :return:
     """
     try:
+        if get_interest(interest_name=interest_name):
+            return '⚠️ Данный интерес уже существует в БД'
         new_interest = Interests(interest_name=interest_name)
         session.add(new_interest)
         session.commit()
@@ -291,7 +326,8 @@ def get_user_interest(user_id: int):
                      filter(UsersInterest.id_VK_user == user_id).
                      all())
         if interests:
-            return interests
+            interests_list = [i[0] for i in interests]
+            return interests_list
         return '😔 У данного пользователя интересов не нашлось.'
     except Exception as e:
         logger.error(f'Ошибка при получении интересов пользователя: {e}')
@@ -313,10 +349,16 @@ def add_user_interest(user_id: int, id_interest: int = None,
         if id_interest and '😔' in get_interest(id_interest):
             return '😔 Интереса с таким ID в БД нет. Добавить интерес пользователю невозможно'
         if interest_name:
-            id_interest = get_interest(interest_name)
-            if '😔' in id_interest:
+            id_interest = get_interest(interest_name=interest_name)
+            if not isinstance(id_interest, int):
                 add_interest(interest_name)
-                id_interest = get_interest(interest_name)
+                id_interest = get_interest(interest_name=interest_name)
+        else:
+            interest_name = get_interest(id_interest)
+        old_interests = get_user_interest(user_id)
+        print(old_interests, id_interest, interest_name)
+        if '😔' not in old_interests and interest_name in old_interests:
+            return  '⚠️ Данный интерес уже добавлен пользователю в БД'
         new_interest = UsersInterest(id_VK_user=user_id, id_interest=id_interest)
         session.add(new_interest)
         session.commit()
@@ -341,7 +383,7 @@ def find_match(user_id: int):
         user_interests = get_user_interest(user_id)
 
         # Определяем параметры поиска
-        search_sex = ('женский', 'мужской')[user.gender == 'женский']
+        search_sex = (Gender.VALUE_TWO, Gender.VALUE_ONE)[user.gender == Gender.VALUE_TWO]
         age_from = max(18, user.age - 5) if user.age else 18
         age_to = min(80, user.age + 5) if user.age else 35
         city = user.city
@@ -351,7 +393,6 @@ def find_match(user_id: int):
                                                   Users.age >= age_from,
                                                   Users.age <= age_to,
                                                   Users.city == city).all()
-
         if not found_users:
             return '😔 Никого не нашлось. Попробуйте позже'
 
@@ -392,7 +433,7 @@ def get_user_full_info(user_id: int):
     try:
         user = get_user(user_id)
         photos = get_photo(user_id)
-        interests = get_interest(user_id)
+        interests = get_user_interest(user_id)
 
         return {'id_VK_user': user_id,
                 'name': user.name,
@@ -408,25 +449,67 @@ def get_user_full_info(user_id: int):
         raise ValueError(f'Ошибка при получении полной информации о пользователе: {e}')
 
 
-def write_msg(user_id, message):
-    vk.method('messages.send', {'user_id': user_id, 'message': message,  'random_id': randrange(10 ** 7),})
+
+def test_bd():
+    print(create_new_user(10, 'Иван', 'Иванов', 33,
+                          Gender.VALUE_ONE, 'Москва'))
+    print(create_new_user(11, 'Петр', 'Петров', 20,
+                          Gender.VALUE_ONE, 'Москва'))
+    print(create_new_user(12, 'Ася', 'Сидорова', 30,
+                          Gender.VALUE_TWO, 'Москва'))
+    print(create_new_user(13, 'Вера', 'Воронина', 19,
+                          Gender.VALUE_TWO, 'Москва'))
+    print(create_new_user(14, 'Катя', 'Катина', 29,
+                          Gender.VALUE_TWO, 'Казань'))
+
+    for id in range(10, 15):
+        print(get_user(id))
+
+    interests = ('рисование', 'поход', 'танцы')
+    for interest in interests:
+        print(add_interest(interest))
+
+    for interest in interests:
+        print(get_interest(interest_name=interest))
+
+    print(add_user_interest(10, interest_name='рисование'))
+    print(add_user_interest(10, interest_name='поход'))
+    print(add_user_interest(12, interest_name='поход'))
+
+    for id in range(10, 15):
+        print(get_user_full_info(id))
+
+    print('**************** Ищем совпадения *********')
+    for id in range(10, 15):
+        print(find_match(id))
+
+
+
 
 
 if __name__ == '__main__':
-    for event in longpoll.listen():
-        if event.type == VkEventType.MESSAGE_NEW:
+    test_bd()
 
-            if event.to_me:
-                request = event.text
-                user = get_user(event.user_id)
-                if not user:
-                    create_new_user(event.user_id)
 
-                    write_msg(event.user_id, f'Приветствую, {event.user_id}, в боте поиска контактов')
-                    print(f'В БД добавлен пользователь {event.user_id}')
-                elif request == "привет":
-                    write_msg(event.user_id, f"Хай, {event.user_id}")
-                elif request == "пока":
-                    write_msg(event.user_id, "Пока((")
-                else:
-                    write_msg(event.user_id, "Не поняла вашего ответа...")
+# def write_msg(user_id, message):
+#     vk.method('messages.send', {'user_id': user_id, 'message': message,  'random_id': randrange(10 ** 7),})
+#
+#
+# if __name__ == '__main__':
+#     for event in longpoll.listen():
+#         if event.type == VkEventType.MESSAGE_NEW:
+#
+#             if event.to_me:
+#                 request = event.text
+#                 user = get_user(event.user_id)
+#                 if not user:
+#                     create_new_user(event.user_id)
+#
+#                     write_msg(event.user_id, f'Приветствую, {event.user_id}, в боте поиска контактов')
+#                     print(f'В БД добавлен пользователь {event.user_id}')
+#                 elif request == "привет":
+#                     write_msg(event.user_id, f"Хай, {event.user_id}")
+#                 elif request == "пока":
+#                     write_msg(event.user_id, "Пока((")
+#                 else:
+#                     write_msg(event.user_id, "Не поняла вашего ответа...")
