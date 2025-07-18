@@ -5,11 +5,6 @@ import os, logging
 from models import Users, Interests, UsersInterest, BlackList, Favorites, Photos, Matches, Gender
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-from bot import VKinderBot as VKBot
-
-from random import randrange
-import vk_api
-from vk_api.longpoll import VkLongPoll, VkEventType
 
 # Инициализация подключения к БД
 load_dotenv()
@@ -17,10 +12,6 @@ Base = declarative_base()
 engine = create_engine(os.getenv('DB_URL'))
 SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
-
-TOKEN = os.getenv('VK_GROUP_TOKEN')
-vk = vk_api.VkApi(token=TOKEN)
-longpoll = VkLongPoll(vk)
 
 logger = logging.getLogger(__name__)
 def get_user(user_id: int):
@@ -494,7 +485,17 @@ if __name__ == '__main__':
 # def write_msg(user_id, message):
 #     vk.method('messages.send', {'user_id': user_id, 'message': message,  'random_id': randrange(10 ** 7),})
 #
-#
+
+# from random import randrange
+# import vk_api
+# from vk_api.longpoll import VkLongPoll, VkEventType
+
+# TOKEN = os.getenv('VK_GROUP_TOKEN')
+# vk = vk_api.VkApi(token=TOKEN)
+# longpoll = VkLongPoll(vk)
+
+
+
 # if __name__ == '__main__':
 #     for event in longpoll.listen():
 #         if event.type == VkEventType.MESSAGE_NEW:
