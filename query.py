@@ -474,7 +474,13 @@ def test_bd():
     for id in range(10, 15):
         print(find_match(id))
 
+    print(update_user(11, city='Казань'))
+    print(get_user_full_info(11))
+    print(get_user_full_info(14))
 
+    print('**************** Ищем совпадения *********')
+    for id in range(10, 15):
+        print(find_match(id))
 
 
 
