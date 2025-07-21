@@ -23,18 +23,32 @@ class Users(Base):
     surname = Column(VARCHAR)                       # фамилия пользователя
     age = Column(SMALLINT)                          # возраст пользователя
     gender = Column(SQLEnum(Gender))                # пол пользователя
-    city = Column(VARCHAR)                          # город проживания пользователя
+    id_city = Column(BIGINT, ForeignKey('city.id_city'))                        # ID города проживания пользователя
     interest = relationship('UsersInterest', back_populates='user')
     blacklist = relationship('BlackList', back_populates='user')
     favorite = relationship('Favorites', back_populates='user')
     photo = relationship('Photos', back_populates='user')
     match = relationship('Matches', back_populates='user')
+    city = relationship('City', back_populates='user')
 
     def __repr__(self):
         return f'<User(id_VK_user={self.id_VK_user}, name={self.name}, surname={self.surname}, age={self.age}, gender={self.gender}, city={self.city})>'
 
     def __str__(self):
         return f'User: id_VK_user={self.id_VK_user}, name={self.name}, surname={self.surname}, age={self.age}, gender={self.gender}, city={self.city}'
+
+class City(Base):
+    __tablename__ = 'city'
+    id_city = Column(BIGINT, primary_key=True)  # id города
+    city_name = Column(VARCHAR)                 # название города
+    user = relationship('Users', back_populates='city')
+
+    def __repr__(self):
+        return f'<City(id_city={self.id_city}, city_name={self.city_name})>'
+
+    def __str__(self):
+        return  f'City: id_city={self.id_city}, city_name={self.city_name}'
+
 
 class Interests(Base):
     __tablename__ = 'interests'
@@ -98,14 +112,15 @@ class Photos(Base):
     id_VK_user = Column(BIGINT, ForeignKey('users.id_VK_user')) # id пользователя ВК
     url = Column(TEXT)                              # ссылка на фото
     likes = Column(SMALLINT)                        # количество лайков
+    attachment = Column(TEXT)                       # аттачмент
     is_profile_photo = Column(Boolean)              # фото стоит на профиле?
     user = relationship('Users', back_populates='photo')
 
     def __repr__(self):
-        return f'<Photos(id_user_photo={self.id_user_photo}, id_VK_user={self.id_VK_user}, url={self.url}, likes={self.likes}, is_profile_photo={self.is_profile_photo})>'
+        return f'<Photos(id_user_photo={self.id_user_photo}, id_VK_user={self.id_VK_user}, url={self.url}, likes={self.likes}, attachment={self.attachment}, is_profile_photo={self.is_profile_photo})>'
 
     def __str__(self):
-        return f'Photos: id_user_photo={self.id_user_photo}, id_VK_user={self.id_VK_user}, url={self.url}, likes={self.likes}, is_profile_photo={self.is_profile_photo}'
+        return f'Photos: id_user_photo={self.id_user_photo}, id_VK_user={self.id_VK_user}, url={self.url}, likes={self.likes}, attachment={self.attachment}, is_profile_photo={self.is_profile_photo}'
 
 class Matches(Base):
     __tablename__ = 'matches'

@@ -58,7 +58,7 @@ class VKinderBot:
         # Состояние пользователей бота
         self.user_sessions = {}
         
-        # TODO: Инициализация подключения к БД
+        # Инициализация подключения к БД
         session = SessionLocal()
         # self.db = DatabaseManager()
         
@@ -109,7 +109,7 @@ class VKinderBot:
                 'id': user_info.get('id', 0),
                 'first_name': user_info.get('first_name', 'Скрыто'),
                 'last_name': user_info.get('last_name', 'Скрыто'),
-                'city': user_info.get('city', {}).get('title', 'Не указан'),
+                'city': user_info.get('city', {'id': 1, 'title': 'Москва'}),
                 'age': self._calculate_age(user_info.get('bdate', '')),
                 'sex': user_info.get('sex', 0)
             }
@@ -170,7 +170,7 @@ class VKinderBot:
                         'id': user['id'],
                         'first_name': user['first_name'],
                         'last_name': user['last_name'],
-                        'city': user.get('city', {}).get('title', 'Не указан'),
+                        'city': user.get('city', {'id': 1, 'title': 'Москва'}),
                         'age': self._calculate_age(user.get('bdate', '')),
                         'profile_url': f"https://vk.com/id{user['id']}"
                     })
@@ -234,7 +234,7 @@ class VKinderBot:
     def send_user_profile(self, user_id: int, user_profile: Dict, photos: List[Dict]):
         """
         Отправляет профиль пользователя в чат
-        
+
         Args:
             user_id: ID пользователя
             user_profile: Профиль пользователя
@@ -242,12 +242,11 @@ class VKinderBot:
         """
         try:
             # Формируем сообщение
-            message = f"👤 {user_profile['first_name']} {user_profile['last_name']}\n"
-            message += f"📍 {user_profile['city']}\n"
-            if user_profile['age']:
-                message += f"🎂 {user_profile['age']} лет\n"
-            message += f"🔗 {user_profile['profile_url']}"
-            
+            message = f"👤 {user_profile.name} {user_profile.surname}\n"
+            message += f"📍 {user_profile.city.city_name}\n"
+            if user_profile.age:
+                message += f"🎂 {user_profile.age} лет\n"
+
             # Создаем клавиатуру с кнопками
             keyboard_buttons = [
                 {'text': '❤️ В избранное', 'color': 'POSITIVE', 'payload': 'add_favorite'},
@@ -255,14 +254,14 @@ class VKinderBot:
                 {'text': '📋 Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'},
                 {'text': '🔍 Новый поиск', 'color': 'SECONDARY', 'payload': 'new_search'}
             ]
-            
+
             keyboard = self.create_keyboard(keyboard_buttons)
-            
+
             # Формируем вложения (фотографии)
             attachments = []
             for photo in photos:
-                attachments.append(photo['attachment'])
-            
+                attachments.append(photo.attachment)
+
             # Отправляем сообщение
             self.vk_group.method('messages.send', {
                 'user_id': user_id,
@@ -271,11 +270,11 @@ class VKinderBot:
                 'attachment': ','.join(attachments) if attachments else None,
                 'random_id': get_random_id()
             })
-            
+
         except Exception as e:
             logger.error(f"Ошибка отправки профиля: {e}")
-    
-    def add_to_favorites(self, user_id: int, target_user: Dict):
+
+    def add_to_favorites(self, user_id: int, target_user: dict):
         """
         Добавляет пользователя в избранное
         
@@ -284,23 +283,26 @@ class VKinderBot:
             target_user: Профиль добавляемого пользователя
         """
         try:
-            # TODO: Сохранение в БД
-            # self.db.add_favorite(user_id, target_user)
+            # Сохранение в БД
+            message = add_favorite(user_id, target_user.id_VK_user)
             
-            # Временно сохраняем в памяти
-            if user_id not in self.user_sessions:
-                self.user_sessions[user_id] = {'favorites': []}
-            
-            # Проверяем, не добавлен ли уже
-            favorites = self.user_sessions[user_id].get('favorites', [])
-            if not any(fav['id'] == target_user['id'] for fav in favorites):
-                favorites.append(target_user)
-                self.user_sessions[user_id]['favorites'] = favorites
-                
-                self.send_message(user_id, "✅ Пользователь добавлен в избранное!")
-            else:
-                self.send_message(user_id, "⚠️ Этот пользователь уже в избранном!")
-                
+            # Создаем клавиатуру с кнопками
+            keyboard_buttons = [
+                {'text': '➡️ Следующий', 'color': 'PRIMARY', 'payload': 'next_user'},
+                {'text': '📋 Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'},
+                {'text': '🔍 Новый поиск', 'color': 'SECONDARY', 'payload': 'new_search'}
+            ]
+
+            keyboard = self.create_keyboard(keyboard_buttons)
+
+            # Отправляем сообщение
+            self.vk_group.method('messages.send', {
+                'user_id': user_id,
+                'message': message,
+                'keyboard': keyboard,
+                'random_id': get_random_id()
+            })
+
         except Exception as e:
             logger.error(f"Ошибка добавления в избранное: {e}")
     
@@ -312,22 +314,27 @@ class VKinderBot:
             user_id: ID пользователя бота
         """
         try:
-            # TODO: Получение из БД
-            # favorites = self.db.get_favorites(user_id)
+            # Получение из БД
+            favorites = get_favorites(user_id)
             
-            # Временно получаем из памяти
-            favorites = self.user_sessions.get(user_id, {}).get('favorites', [])
-            
-            if not favorites:
+            if isinstance(favorites, str):
                 self.send_message(user_id, "📋 Ваш список избранного пуст")
                 return
             
             message = "📋 Избранные пользователи:\n\n"
             for i, fav in enumerate(favorites, 1):
-                message += f"{i}. {fav['first_name']} {fav['last_name']}\n"
-                message += f"   {fav['profile_url']}\n\n"
-            
-            self.send_message(user_id, message)
+                cur_fav = get_user(fav[0])
+                message += f"{i}. {cur_fav.name} {cur_fav.surname}\n"
+                message += f"   https://vk.com/id{cur_fav.id_VK_user}\n\n"
+
+            keyboard_buttons = [
+                {'text': '🔍 Начать поиск', 'color': 'POSITIVE', 'payload': 'start_search'},
+                {'text': '❤️ Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'}
+            ]
+
+            keyboard = self.create_keyboard(keyboard_buttons)
+
+            self.send_message(user_id, message, keyboard)
             
         except Exception as e:
             logger.error(f"Ошибка показа избранного: {e}")
@@ -358,8 +365,8 @@ class VKinderBot:
     
     def start_search(self, user_id: int):
         """
-        Начинает поиск пользователей
-        
+        Поиск пользователей в БД
+
         Args:
             user_id: ID пользователя бота
         """
@@ -369,72 +376,52 @@ class VKinderBot:
             if not user_info:
                 self.send_message(user_id, "❌ Не удалось получить информацию о вашем профиле")
                 return
-            
-            # Определяем параметры поиска
-            search_sex = 1 if user_info['sex'] == 2 else 2  # Ищем противоположный пол
-            user_age = user_info['age']
-            age_from = max(18, user_age - 5) if user_age else 18
-            age_to = min(80, user_age + 5) if user_age else 35
-            
-            # TODO: Получение ID города из БД или кеша
-            city_id = 1  # Москва по умолчанию
-            
-            # Поиск пользователей
-            found_users = self.search_users(city_id, age_from, age_to, search_sex)
-            
-            if not found_users:
-                self.send_message(user_id, "😔 Никого не найдено. Попробуйте позже.")
+
+            # поиск по БД среди участников чата
+            found_users = find_match(user_id)
+
+            if isinstance(found_users, str):
+                self.send_message(user_id, found_users)
                 return
-            
-            # Сохраняем результаты поиска в сессию
-            self.user_sessions[user_id] = {
-                'search_results': found_users,
-                'current_index': 0,
-                'favorites': self.user_sessions.get(user_id, {}).get('favorites', [])
-            }
-            
+
             # Показываем первого пользователя
             self.show_next_user(user_id)
-            
+
         except Exception as e:
             logger.error(f"Ошибка начала поиска: {e}")
             self.send_message(user_id, "❌ Ошибка при поиске. Попробуйте позже.")
-    
+
     def show_next_user(self, user_id: int):
         """
         Показывает следующего пользователя из результатов поиска
-        
+
         Args:
             user_id: ID пользователя бота
         """
         try:
-            session = self.user_sessions.get(user_id)
-            if not session or 'search_results' not in session:
-                self.send_message(user_id, "🔍 Сначала запустите поиск командой /start")
+            match = get_match(user_id)
+            if isinstance(match, str):
+                keyboard_buttons = [
+                    {'text': '🔍 Начать поиск', 'color': 'POSITIVE', 'payload': 'start_search'},
+                    {'text': '❤️ Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'}
+                ]
+
+                keyboard = self.create_keyboard(keyboard_buttons)
+                self.send_message(user_id, match, keyboard)
                 return
-            
-            search_results = session['search_results']
-            current_index = session['current_index']
-            
-            if current_index >= len(search_results):
-                self.send_message(user_id, "🔚 Больше пользователей не найдено. Начните новый поиск.")
-                return
-            
-            current_user = search_results[current_index]
-            
-            # Получаем популярные фотографии
-            photos = self.get_popular_photos(current_user['id'])
-            
-            # Сохраняем текущего пользователя в сессию
-            session['current_user'] = current_user
-            session['current_index'] = current_index + 1
-            
+
+            current_user = get_user(match.id_target_user)
+            photos = get_photo(match.id_target_user)
+            self.user_sessions[user_id]={
+                'current_user': current_user
+            }
+
             # Отправляем профиль
             self.send_user_profile(user_id, current_user, photos)
-            
+
         except Exception as e:
             logger.error(f"Ошибка показа следующего пользователя: {e}")
-    
+
     def handle_message(self, event):
         """
         Обработчик входящих сообщений
@@ -450,16 +437,13 @@ class VKinderBot:
             user = get_user(user_id)
             if not user:
                 user_VK = self.get_user_info(user_id)
-                print('tst2')
-                print(user_VK)
 
                 create_new_user(user_id, user_VK['first_name'], user_VK['last_name'], user_VK['age'],
-                                (0, Gender.VALUE_ONE, Gender.VALUE_TWO)[user_VK['sex']], user_VK['city'])
-                print('tst3')
+                                (0, Gender.VALUE_TWO, Gender.VALUE_ONE)[user_VK['sex']], user_VK['city'])
 
                 photos = self.get_popular_photos(user_id)
                 for photo in photos:
-                    add_photo(user_id, photo['url'], photo['likes'], False)
+                    add_photo(user_id, photo['url'], photo['likes'], photo['attachment'],False)
 
             # Обработка команд
             if message == '/start' or message == 'начать':
@@ -531,9 +515,9 @@ class VKinderBot:
                 self.show_next_user(user_id)
                 
             elif payload == 'add_favorite':
-                session = self.user_sessions.get(user_id)
-                if session and 'current_user' in session:
-                    self.add_to_favorites(user_id, session['current_user'])
+                user_session = self.user_sessions.get(user_id)
+                if user_session and 'current_user' in user_session:
+                    self.add_to_favorites(user_id, user_session['current_user'])
                 else:
                     self.send_message(user_id, "❌ Нет активного пользователя для добавления")
                     

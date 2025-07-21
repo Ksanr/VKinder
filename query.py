@@ -2,7 +2,9 @@ from datetime import datetime
 from dotenv import load_dotenv
 import os, logging
 
-from models import Users, Interests, UsersInterest, BlackList, Favorites, Photos, Matches, Gender
+from sqlalchemy.testing.suite import PrecisionIntervalTest
+
+from models import Users, Interests, UsersInterest, BlackList, Favorites, Photos, Matches, Gender, City
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -29,7 +31,7 @@ def get_user(user_id: int):
         raise ValueError(f'Ошибка при получении информации о пользователе: {e}')
 
 def create_new_user(user_id: int, name: str = None, surname: str = None,
-                    age: int = None, gender: Gender = None, city: str = None):
+                    age: int = None, gender: Gender = None, city: dict = None):
     """
     Создание нового пользователя
     :param user_id: ID пользователя
@@ -55,8 +57,12 @@ def create_new_user(user_id: int, name: str = None, surname: str = None,
         if user:
             return f'⚠️ Пользователь с id:{user_id} уже существует в БД'
 
+        id_city = get_city(city_name=city['title'])
+        if not id_city:
+            add_city(city['id'], city['title'])
+
         new_user = Users(id_VK_user=user_id, name=name, surname=surname, age=age,
-                         gender=gender, city=city)
+                         gender=gender, id_city=city['id'])
         session.add(new_user)
         session.commit()
         return '✅ Создан новый пользователь.'
@@ -66,7 +72,7 @@ def create_new_user(user_id: int, name: str = None, surname: str = None,
 
 
 def update_user(user_id: int, name: str = None, surname: str = None,
-                    age: int = None, gender: str = None, city: str = None):
+                    age: int = None, gender: str = None, city: dict = None):
     """
     Обновление данных о пользователе
     :param user_id: ID пользователя
@@ -86,7 +92,12 @@ def update_user(user_id: int, name: str = None, surname: str = None,
         if surname: user.surname=surname
         if age: user.age = age
         if gender: user.gender = gender
-        if city: user.city = city
+        if city:
+            city_id = get_city(city_name=city['title'])
+            if not city:
+                add_city(id_city=city['id'], city_name=city['title'])
+            user.city = city
+
         session.add(user)
         session.commit()
         return '✅ Данные о пользователе обновлены.'
@@ -101,8 +112,7 @@ def get_favorites(user_id: int):
     :return:
     """
     try:
-        users = (session.query(Favorites.id_target)
-                 .filter_by(id_VK_user=user_id).all())
+        users = session.query(Favorites.id_target).filter_by(id_VK_user=user_id).all()
         if users:
             return users
         return '📋 Ваш список избранного пуст'
@@ -119,15 +129,11 @@ def add_favorite(user_id: int, target_id: int):
     """
     # проверяем наличие избранного в избранных
     try:
-        if target_id in get_favorites(user_id):
-            return '⚠️ Этот пользователь уже в избранном!'
-        # При отсутствии избранного пользователя можно создать его
-        # user = get_user(target_id)
-        # if not user:
-        #     # Получаем данные об избранном пользователе из ВК
-        #     user = VKBot.get_user_info(target_id)
-        #     create_new_user(user['id'], user['first_name'], user['last_name'],
-        #                     user['age'], user['sex'], user['city'])
+        favorites = get_favorites(user_id)
+        if isinstance(favorites, list):
+            for i in favorites:
+                if target_id == i[0]:
+                    return '⚠️ Этот пользователь уже в избранном!'
 
         # Добавление пользователя в избранные
         new_favorite = Favorites(id_VK_user=user_id, id_target=target_id)
@@ -191,7 +197,7 @@ def get_photo(user_id: int, count: int = 3):
     :return:
     """
     try:
-        photos = (session.query(Photos.url)
+        photos = (session.query(Photos)
                   .filter_by(id_VK_user=user_id)
                   .order_by(Photos.likes)
                   .limit(count)
@@ -201,7 +207,7 @@ def get_photo(user_id: int, count: int = 3):
         logger.error(f'Ошибка при получении фото: {e}')
         raise ValueError(f'Ошибка при получении фото: {e}')
 
-def add_photo(user_id: int, url: str, likes: int, is_profile_photo: bool):
+def add_photo(user_id: int, url: str, likes: int, attachment: str, is_profile_photo: bool):
     """
     сохранение фото в БД
     :param user_id: ID пользователя
@@ -211,7 +217,7 @@ def add_photo(user_id: int, url: str, likes: int, is_profile_photo: bool):
     :return:
     """
     try:
-        new_photo = Photos(id_VK_user=user_id, url=url, likes=likes,
+        new_photo = Photos(id_VK_user=user_id, url=url, likes=likes, attachment=attachment,
                            is_profile_photo=is_profile_photo)
         session.add(new_photo)
         session.commit()
@@ -228,7 +234,7 @@ def get_match(user_id: int):
     """
     try:
         match = (session.query(Matches)
-                 .filter(Matches.id_VK_user == user_id, Matches.match_shown == False or Matches.match_shown == None)
+                 .filter(Matches.id_VK_user == user_id, Matches.match_shown == None)
                  .first())
         if match:
             match.match_shown = True
@@ -295,7 +301,7 @@ def add_interest(interest_name: str):
     :return:
     """
     try:
-        if get_interest(interest_name=interest_name):
+        if isinstance(get_interest(interest_name=interest_name), int):
             return '⚠️ Данный интерес уже существует в БД'
         new_interest = Interests(interest_name=interest_name)
         session.add(new_interest)
@@ -347,7 +353,6 @@ def add_user_interest(user_id: int, id_interest: int = None,
         else:
             interest_name = get_interest(id_interest)
         old_interests = get_user_interest(user_id)
-        print(old_interests, id_interest, interest_name)
         if '😔' not in old_interests and interest_name in old_interests:
             return  '⚠️ Данный интерес уже добавлен пользователю в БД'
         new_interest = UsersInterest(id_VK_user=user_id, id_interest=id_interest)
@@ -387,6 +392,7 @@ def find_match(user_id: int):
         if not found_users:
             return '😔 Никого не нашлось. Попробуйте позже'
 
+
         # Составляем список из найденных пользователей со схожими интересами
         if '😔' in user_interests:
             interest_users = found_users
@@ -397,23 +403,64 @@ def find_match(user_id: int):
                     if found_user_interest in user_interests:
                         interest_users.append(found_user)
                         break
-
         if not interest_users:
             return '😔 С Вашими интересами никого не нашлось. Попробуйте позже'
 
         # Сохраняем результат в БД
         for found_user in interest_users: # Можно сохранить пользователей без учёта интересов заменив interest_users на found_users
             # проверяем наличие аналогичных записей, сделанных ранее
+
             match = session.query(Matches).filter(Matches.id_VK_user == user_id,
                                                   Matches.id_target_user == found_user.id_VK_user).first()
             if not match:
                 add_match(user_id, found_user.id_VK_user, datetime.now(), False)
 
         # Возвращаем первое совпадение
-        return get_match(user_id)
+        # return get_match(user_id)
     except Exception as e:
         logger.error(f'Ошибка при поиске совпадений: {e}')
         raise ValueError(f'Ошибка при поиске совпадений: {e}')
+
+def get_city(id_city: int = None, city_name: str = None) -> str:
+    """
+    Получение названия города по id
+    :param id_city: ID города
+    :return:
+    """
+    try:
+        if id_city:
+            #city_name = session.get(City.city_name, id_city)
+            city_name = session.query(City.id_city).filter_by(id_city=id_city).first()
+            if city_name:
+                return city_name[0]
+        id_city = session.query(City.id_city).filter_by(city_name=city_name).first()
+        if id_city:
+            return id_city[0]
+
+    except Exception as e:
+        logger.error(f'Ошибка при получении города: {e}')
+        raise ValueError(f'Ошибка при получении города: {e}')
+
+def add_city(id_city: int, city_name: str):
+    """
+    Добавление города в БД
+    :param city_name: наименование города
+    :param id_city: ID города
+    :return:
+    """
+    try:
+        if get_city(city_name=city_name):
+            return '⚠️ Данный город уже существует в БД'
+        if id_city:
+            new_city = City(city_name=city_name, id_city=id_city)
+        else:
+            new_city = City(city_name=city_name)
+        session.add(new_city)
+        session.commit()
+        return '✅ Город успешно добавлен в БД'
+    except Exception as e:
+        logger.error(f'Ошибка при сохранении города: {e}')
+        raise ValueError(f'Ошибка при сохранении города: {e}')
 
 def get_user_full_info(user_id: int):
     """
@@ -431,7 +478,7 @@ def get_user_full_info(user_id: int):
                 'surname': user.surname,
                 'age': user.age,
                 'gender': user.gender,
-                'city': user.city,
+                'city': user.city.city_name,
                 'photos': photos,
                 'interests': interests
                 }
@@ -442,31 +489,36 @@ def get_user_full_info(user_id: int):
 
 
 def test_bd():
+    print('**** Создание')
     print(create_new_user(10, 'Иван', 'Иванов', 33,
-                          Gender.VALUE_ONE, 'Москва'))
+                          Gender.VALUE_ONE, {'id': 1, 'title': 'Москва'}))
     print(create_new_user(11, 'Петр', 'Петров', 20,
-                          Gender.VALUE_ONE, 'Москва'))
+                          Gender.VALUE_ONE, {'id': 1, 'title': 'Москва'}))
     print(create_new_user(12, 'Ася', 'Сидорова', 30,
-                          Gender.VALUE_TWO, 'Москва'))
+                          Gender.VALUE_TWO, {'id': 1, 'title': 'Москва'}))
     print(create_new_user(13, 'Вера', 'Воронина', 19,
-                          Gender.VALUE_TWO, 'Москва'))
-    print(create_new_user(14, 'Катя', 'Катина', 29,
-                          Gender.VALUE_TWO, 'Казань'))
-
+                          Gender.VALUE_TWO, {'id': 1, 'title': 'Москва'}))
+    print(create_new_user(14, 'Катя', 'Катина', 22,
+                          Gender.VALUE_TWO, {'id': 2, 'title': 'Казань'}))
+    print('**** Информация')
     for id in range(10, 15):
         print(get_user(id))
 
+    print('**** Интересы')
     interests = ('рисование', 'поход', 'танцы')
     for interest in interests:
         print(add_interest(interest))
 
+    print('**** Информация')
     for interest in interests:
         print(get_interest(interest_name=interest))
 
+    print('**** Интересы пользователю')
     print(add_user_interest(10, interest_name='рисование'))
     print(add_user_interest(10, interest_name='поход'))
     print(add_user_interest(12, interest_name='поход'))
 
+    print('**** Полная Информация')
     for id in range(10, 15):
         print(get_user_full_info(id))
 
@@ -474,14 +526,14 @@ def test_bd():
     for id in range(10, 15):
         print(find_match(id))
 
-    print(update_user(11, city='Казань'))
+    print('**************** Обновление данных пользователя и сравнение *********')
+    print(update_user(11, city={'id': 2, 'title': 'Казань'}))
     print(get_user_full_info(11))
     print(get_user_full_info(14))
 
     print('**************** Ищем совпадения *********')
     for id in range(10, 15):
         print(find_match(id))
-
 
 
 if __name__ == '__main__':
