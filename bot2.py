@@ -1,4 +1,6 @@
 import os
+from pyexpat.errors import messages
+
 import vk_api
 from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
@@ -64,7 +66,7 @@ class VKinderBot:
         
         logger.info("VKinder Bot инициализирован")
     
-    def create_keyboard(self, buttons: List[Dict[str, str]]) -> str:
+    def create_keyboard(self, buttons: List[Dict[str, str]]) -> dict:
         """
         Создает клавиатуру с кнопками
         
@@ -115,7 +117,7 @@ class VKinderBot:
             }
         except Exception as e:
             logger.error(f"Ошибка получения информации о пользователе {user_id}: {e}")
-            return None
+            return
     
     def _calculate_age(self, bdate: str) -> int:
         """
@@ -250,8 +252,10 @@ class VKinderBot:
             # Создаем клавиатуру с кнопками
             keyboard_buttons = [
                 {'text': '❤️ В избранное', 'color': 'POSITIVE', 'payload': 'add_favorite'},
+                {'text': '🙈 В ЧС', 'color': 'NEGATIVE', 'payload': 'add_blacklist'},
                 {'text': '➡️ Следующий', 'color': 'PRIMARY', 'payload': 'next_user'},
                 {'text': '📋 Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'},
+                {'text': '🔕 Черный список', 'color': 'SECONDARY', 'payload': 'show_blacklist'},
                 {'text': '🔍 Новый поиск', 'color': 'SECONDARY', 'payload': 'new_search'}
             ]
 
@@ -290,6 +294,7 @@ class VKinderBot:
             keyboard_buttons = [
                 {'text': '➡️ Следующий', 'color': 'PRIMARY', 'payload': 'next_user'},
                 {'text': '📋 Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'},
+                {'text': '🔕 Черный список', 'color': 'SECONDARY', 'payload': 'show_blacklist'},
                 {'text': '🔍 Новый поиск', 'color': 'SECONDARY', 'payload': 'new_search'}
             ]
 
@@ -318,18 +323,18 @@ class VKinderBot:
             favorites = get_favorites(user_id)
             
             if isinstance(favorites, str):
-                self.send_message(user_id, "📋 Ваш список избранного пуст")
-                return
-            
-            message = "📋 Избранные пользователи:\n\n"
-            for i, fav in enumerate(favorites, 1):
-                cur_fav = get_user(fav[0])
-                message += f"{i}. {cur_fav.name} {cur_fav.surname}\n"
-                message += f"   https://vk.com/id{cur_fav.id_VK_user}\n\n"
+                message = "📋 Ваш список избранного пуст"
+            else:
+                message = "📋 Избранные пользователи:\n\n"
+                for i, fav in enumerate(favorites, 1):
+                    cur_fav = get_user(fav[0])
+                    message += f"{i}. {cur_fav.name} {cur_fav.surname}\n"
+                    message += f"   https://vk.com/id{cur_fav.id_VK_user}\n\n"
 
             keyboard_buttons = [
                 {'text': '🔍 Начать поиск', 'color': 'POSITIVE', 'payload': 'start_search'},
-                {'text': '❤️ Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'}
+                {'text': '❤️ Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'},
+                {'text': '🔕 Черный список', 'color': 'SECONDARY', 'payload': 'show_blacklist'}
             ]
 
             keyboard = self.create_keyboard(keyboard_buttons)
@@ -338,7 +343,73 @@ class VKinderBot:
             
         except Exception as e:
             logger.error(f"Ошибка показа избранного: {e}")
-    
+
+    def add_to_blacklist(self, user_id: int, target_user: dict):
+        """
+        Добавляет пользователя в ЧС
+
+        Args:
+            user_id: ID пользователя бота
+            target_user: Профиль добавляемого пользователя
+        """
+        try:
+            # Сохранение в БД
+            message = add_blacklist(user_id, target_user.id_VK_user)
+
+            # Создаем клавиатуру с кнопками
+            keyboard_buttons = [
+                {'text': '➡️ Следующий', 'color': 'PRIMARY', 'payload': 'next_user'},
+                {'text': '📋 Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'},
+                {'text': '🔕 Черный список', 'color': 'SECONDARY', 'payload': 'show_blacklist'},
+                {'text': '🔍 Новый поиск', 'color': 'SECONDARY', 'payload': 'new_search'}
+            ]
+
+            keyboard = self.create_keyboard(keyboard_buttons)
+
+            # Отправляем сообщение
+            self.vk_group.method('messages.send', {
+                'user_id': user_id,
+                'message': message,
+                'keyboard': keyboard,
+                'random_id': get_random_id()
+            })
+
+        except Exception as e:
+            logger.error(f"Ошибка добавления в избранное: {e}")
+
+    def show_blacklist(self, user_id: int):
+        """
+        Показывает список пользователей в ЧС
+
+        Args:
+            user_id: ID пользователя бота
+        """
+        try:
+            # Получение из БД
+            blacklist = get_blacklist(user_id)
+
+            if isinstance(blacklist, str):
+                message = "📋 Ваш черный список пуст"
+            else:
+                message = "📋 пользователи в черном списке:\n\n"
+                for i, fav in enumerate(blacklist, 1):
+                    cur_fav = get_user(fav[0])
+                    message += f"{i}. {cur_fav.name} {cur_fav.surname}\n"
+                    message += f"   https://vk.com/id{cur_fav.id_VK_user}\n\n"
+
+            keyboard_buttons = [
+                {'text': '🔍 Начать поиск', 'color': 'POSITIVE', 'payload': 'start_search'},
+                {'text': '❤️ Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'},
+                {'text': '🔕 Черный список', 'color': 'SECONDARY', 'payload': 'show_blacklist'}
+            ]
+
+            keyboard = self.create_keyboard(keyboard_buttons)
+
+            self.send_message(user_id, message, keyboard)
+
+        except Exception as e:
+            logger.error(f"Ошибка показа избранного: {e}")
+
     def send_message(self, user_id: int, message: str, keyboard: str = None):
         """
         Отправляет сообщение пользователю
@@ -403,7 +474,8 @@ class VKinderBot:
             if isinstance(match, str):
                 keyboard_buttons = [
                     {'text': '🔍 Начать поиск', 'color': 'POSITIVE', 'payload': 'start_search'},
-                    {'text': '❤️ Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'}
+                    {'text': '❤️ Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'},
+                    {'text': '🔕 Черный список', 'color': 'SECONDARY', 'payload': 'show_blacklist'}
                 ]
 
                 keyboard = self.create_keyboard(keyboard_buttons)
@@ -462,7 +534,8 @@ class VKinderBot:
                 
                 keyboard_buttons = [
                     {'text': '🔍 Начать поиск', 'color': 'POSITIVE', 'payload': 'start_search'},
-                    {'text': '❤️ Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'}
+                    {'text': '❤️ Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'},
+                    {'text': '🔕 Черный список', 'color': 'SECONDARY', 'payload': 'show_blacklist'}
                 ]
                 
                 keyboard = self.create_keyboard(keyboard_buttons)
@@ -470,7 +543,10 @@ class VKinderBot:
                 
             elif message == '/favorites':
                 self.show_favorites(user_id)
-                
+
+            elif message == '/blacklist':
+                self.show_blacklist(user_id)
+
             elif message == '/help':
                 help_message = """
 🤖 Помощь по VKinder Bot
@@ -484,6 +560,7 @@ class VKinderBot:
 • 🔍 Начать поиск - Найти новых людей
 • ➡️ Следующий - Показать следующего пользователя
 • ❤️ В избранное - Добавить в избранное
+• 🙈️ В ЧС - Добавить в черный список
 • 📋 Избранное - Показать список избранных
 
 ❗ Примечание: Для работы бота требуется открытый профиль ВКонтакте.
@@ -520,9 +597,19 @@ class VKinderBot:
                     self.add_to_favorites(user_id, user_session['current_user'])
                 else:
                     self.send_message(user_id, "❌ Нет активного пользователя для добавления")
-                    
+
+            elif payload == 'add_blacklist':
+                user_session = self.user_sessions.get(user_id)
+                if user_session and 'current_user' in user_session:
+                    self.add_to_blacklist(user_id, user_session['current_user'])
+                else:
+                    self.send_message(user_id, "❌ Нет активного пользователя для добавления")
+
             elif payload == 'show_favorites':
                 self.show_favorites(user_id)
+
+            elif payload == 'show_blacklist':
+                self.show_blacklist(user_id)
                 
             elif payload == 'new_search':
                 self.start_search(user_id)

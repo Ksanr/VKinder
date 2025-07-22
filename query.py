@@ -40,7 +40,7 @@ def create_new_user(user_id: int, name: str = None, surname: str = None,
     :param age: возраст
     :param gender: пол
     :param city: город
-    :return:
+    :return: Информация о создании пользователя
     """
     try:
         # при отсутствии данных можно запросить из ВК
@@ -81,7 +81,7 @@ def update_user(user_id: int, name: str = None, surname: str = None,
     :param age: возраст
     :param gender: пол
     :param city: город
-    :return:
+    :return: информацию об обновлении данных пользователя
     """
     try:
         user = get_user(user_id)
@@ -109,7 +109,7 @@ def get_favorites(user_id: int):
     """
     Получение избранных пользователей
     :param user_id: ID пользователя бота
-    :return:
+    :return: список избранных пользователей
     """
     try:
         users = session.query(Favorites.id_target).filter_by(id_VK_user=user_id).all()
@@ -125,7 +125,7 @@ def add_favorite(user_id: int, target_id: int):
     Добавление пользователя в избранные
     :param user_id: ID пользователя
     :param target_id: ID избранного пользователя
-    :return:
+    :return: информация о добавлении пользователя в избранные
     """
     # проверяем наличие избранного в избранных
     try:
@@ -148,7 +148,7 @@ def get_blacklist(user_id: int):
     """
     Получение избранных пользователей
     :param user_id: ID пользователя бота
-    :return:
+    :return: ЧС
     """
     try:
         users = (session.query(BlackList.id_blocked)
@@ -166,19 +166,15 @@ def add_blacklist(user_id: int, blocked_id: int):
     Добавление пользователя в черный список
     :param user_id: ID пользователя
     :param blocked_id: ID пользователя для блокировки
-    :return:
+    :return: информация о добавлении пользователя в ЧС
     """
     # проверяем наличие пользователя в чёрном списке
     try:
-        if blocked_id in get_blacklist(user_id):
-            return '⚠️ Этот пользователь уже в чёрном списке!'
-        # При отсутствии пользователя для ЧС можно создать его
-        # user = get_user(blocked_id)
-        # if not user:
-        #     # Получаем данные об пользователе, добавляемом в ЧС
-        #     user = VKBot.get_user_info(blocked_id)
-        #     create_new_user(user['id'], user['first_name'], user['last_name'],
-        #                     user['age'], user['sex'], user['city'])
+        blacklist = get_blacklist(user_id)
+        if isinstance(blacklist, list):
+            for i in blacklist:
+                if blocked_id == i[0]:
+                    return '⚠️ Этот пользователь уже в черном списке!'
 
         # Добавление пользователя в избранные
         new_black_user = BlackList(id_VK_user=user_id, id_blocked=blocked_id)
@@ -194,7 +190,7 @@ def get_photo(user_id: int, count: int = 3):
     вызов фото из БД
     :param user_id: ID пользователя
     :param count: количество записей
-    :return:
+    :return: список объектов Photos
     """
     try:
         photos = (session.query(Photos)
@@ -214,7 +210,7 @@ def add_photo(user_id: int, url: str, likes: int, attachment: str, is_profile_ph
     :param url: url фото
     :param likes: количество лайков
     :param is_profile_photo: фото профиля
-    :return:
+    :return: информация по добалению фото
     """
     try:
         new_photo = Photos(id_VK_user=user_id, url=url, likes=likes, attachment=attachment,
@@ -230,7 +226,7 @@ def get_match(user_id: int):
     """
     вызов совпадения из БД
     :param user_id: ID пользователя
-    :return:
+    :return: совпадение
     """
     try:
         match = (session.query(Matches)
@@ -254,7 +250,7 @@ def add_match(user_id: int, target_id: int, matched_at: datetime = None,
     :param target_id: ID совпадающего пользователя
     :param matched_at: Дата и время добавления
     :param match_shown: Совпадение уже показывали
-    :return:
+    :return: информация о добавлении совпадения
     """
     try:
         if not matched_at:
@@ -273,7 +269,7 @@ def get_interest(id_interest: int = None, interest_name : str = None):
     Вызов названия/ID интереса
     :param id_interest: ID интереса
     :param interest_name: название интереса
-    :return:
+    :return: интерес
     """
     try:
         if id_interest:
@@ -298,7 +294,7 @@ def add_interest(interest_name: str):
     """
     Добавление интереса в БД
     :param interest_name: наименование интереса
-    :return:
+    :return: информация о добавлении интереса
     """
     try:
         if isinstance(get_interest(interest_name=interest_name), int):
@@ -315,7 +311,7 @@ def get_user_interest(user_id: int):
     """
     Вызов интересов пользователя
     :param user_id: ID пользователя
-    :return:
+    :return: интерес пользователя
     """
     try:
         interests = (session.query(Interests.interest_name)
@@ -337,7 +333,7 @@ def add_user_interest(user_id: int, id_interest: int = None,
     :param user_id: ID пользователя
     :param id_interest: ID интереса
     :param interest_name: название интереса
-    :return:
+    :return: информация о добавлении интереса пользователя
     """
     if not (id_interest or interest_name):
         return '😔 Не указаны ID или название интереса.'
@@ -367,7 +363,7 @@ def find_match(user_id: int):
     """
     Поиск совпадений по базе данных
     :param user_id: ID пользователя
-    :return:
+    :return: None / информацию об отсутствии совпадений
     """
     try:
         # получаем информацию о пользователе
@@ -425,7 +421,8 @@ def get_city(id_city: int = None, city_name: str = None) -> str:
     """
     Получение названия города по id
     :param id_city: ID города
-    :return:
+    :param city_name: название города
+    :return: противоположный передаваемому параметр города
     """
     try:
         if id_city:
@@ -446,7 +443,7 @@ def add_city(id_city: int, city_name: str):
     Добавление города в БД
     :param city_name: наименование города
     :param id_city: ID города
-    :return:
+    :return: информация о добавлении города
     """
     try:
         if get_city(city_name=city_name):
@@ -466,7 +463,7 @@ def get_user_full_info(user_id: int):
     """
     Получение полной информации о пользователе
     :param user_id: ID пользователя
-    :return:
+    :return: полная информация о пользователе
     """
     try:
         user = get_user(user_id)
@@ -538,37 +535,3 @@ def test_bd():
 
 if __name__ == '__main__':
     test_bd()
-
-
-# def write_msg(user_id, message):
-#     vk.method('messages.send', {'user_id': user_id, 'message': message,  'random_id': randrange(10 ** 7),})
-#
-
-# from random import randrange
-# import vk_api
-# from vk_api.longpoll import VkLongPoll, VkEventType
-
-# TOKEN = os.getenv('VK_GROUP_TOKEN')
-# vk = vk_api.VkApi(token=TOKEN)
-# longpoll = VkLongPoll(vk)
-
-
-
-# if __name__ == '__main__':
-#     for event in longpoll.listen():
-#         if event.type == VkEventType.MESSAGE_NEW:
-#
-#             if event.to_me:
-#                 request = event.text
-#                 user = get_user(event.user_id)
-#                 if not user:
-#                     create_new_user(event.user_id)
-#
-#                     write_msg(event.user_id, f'Приветствую, {event.user_id}, в боте поиска контактов')
-#                     print(f'В БД добавлен пользователь {event.user_id}')
-#                 elif request == "привет":
-#                     write_msg(event.user_id, f"Хай, {event.user_id}")
-#                 elif request == "пока":
-#                     write_msg(event.user_id, "Пока((")
-#                 else:
-#                     write_msg(event.user_id, "Не поняла вашего ответа...")
