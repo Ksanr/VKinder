@@ -16,6 +16,8 @@ SessionLocal = sessionmaker(bind=engine)
 session = SessionLocal()
 
 logger = logging.getLogger(__name__)
+
+
 def get_user(user_id: int):
     """
     Получение пользователя по ID
@@ -29,6 +31,7 @@ def get_user(user_id: int):
     except Exception as e:
         logger.error(f'Ошибка при получении информации о пользователе: {e}')
         raise ValueError(f'Ошибка при получении информации о пользователе: {e}')
+
 
 def create_new_user(user_id: int, name: str = None, surname: str = None,
                     age: int = None, gender: Gender = None, city: dict = None):
@@ -72,7 +75,7 @@ def create_new_user(user_id: int, name: str = None, surname: str = None,
 
 
 def update_user(user_id: int, name: str = None, surname: str = None,
-                    age: int = None, gender: str = None, city: dict = None):
+                age: int = None, gender: str = None, city: dict = None):
     """
     Обновление данных о пользователе
     :param user_id: ID пользователя
@@ -89,7 +92,7 @@ def update_user(user_id: int, name: str = None, surname: str = None,
             return f'😔 Пользователь с id:{user_id} не существует в БД'
 
         if name: user.name = name
-        if surname: user.surname=surname
+        if surname: user.surname = surname
         if age: user.age = age
         if gender: user.gender = gender
         if city:
@@ -105,6 +108,7 @@ def update_user(user_id: int, name: str = None, surname: str = None,
         logger.error(f'Ошибка при обновлении данных пользователя: {e}')
         raise ValueError(f'Ошибка при обновлении данных пользователя: {e}')
 
+
 def get_favorites(user_id: int):
     """
     Получение избранных пользователей
@@ -119,6 +123,7 @@ def get_favorites(user_id: int):
     except Exception as e:
         logger.error(f'Ошибка при получении списка избранных: {e}')
         raise ValueError(f'Ошибка при получении списка избранных: {e}')
+
 
 def add_favorite(user_id: int, target_id: int):
     """
@@ -144,6 +149,7 @@ def add_favorite(user_id: int, target_id: int):
         logger.error(f'Ошибка при сохранении пользователя в список избранных: {e}')
         raise ValueError(f'Ошибка при сохранении пользователя в список избранных: {e}')
 
+
 def get_blacklist(user_id: int):
     """
     Получение избранных пользователей
@@ -160,6 +166,7 @@ def get_blacklist(user_id: int):
     except Exception as e:
         logger.error(f'Ошибка при получении чёрного списка: {e}')
         raise ValueError(f'Ошибка при получении чёрного списка: {e}')
+
 
 def add_blacklist(user_id: int, blocked_id: int):
     """
@@ -185,6 +192,7 @@ def add_blacklist(user_id: int, blocked_id: int):
         logger.error(f'Ошибка при сохранении пользователя в чёрный список: {e}')
         raise ValueError(f'Ошибка при сохранении пользователя в чёрный список: {e}')
 
+
 def get_photo(user_id: int, count: int = 3):
     """
     вызов фото из БД
@@ -202,6 +210,7 @@ def get_photo(user_id: int, count: int = 3):
     except Exception as e:
         logger.error(f'Ошибка при получении фото: {e}')
         raise ValueError(f'Ошибка при получении фото: {e}')
+
 
 def add_photo(user_id: int, url: str, likes: int, attachment: str, is_profile_photo: bool):
     """
@@ -222,6 +231,7 @@ def add_photo(user_id: int, url: str, likes: int, attachment: str, is_profile_ph
         logger.error(f'Ошибка при сохранении фото: {e}')
         raise ValueError(f'Ошибка при сохранении фото: {e}')
 
+
 def get_match(user_id: int):
     """
     вызов совпадения из БД
@@ -241,6 +251,7 @@ def get_match(user_id: int):
     except Exception as e:
         logger.error(f'Ошибка при получении совпадений: {e}')
         raise ValueError(f'Ошибка при получении совпадений: {e}')
+
 
 def add_match(user_id: int, target_id: int, matched_at: datetime = None,
               match_shown: bool = False):
@@ -264,7 +275,8 @@ def add_match(user_id: int, target_id: int, matched_at: datetime = None,
         logger.error(f'Ошибка при сохранении совпадений: {e}')
         raise ValueError(f'Ошибка при сохранении совпадения: {e}')
 
-def get_interest(id_interest: int = None, interest_name : str = None):
+
+def get_interest(id_interest: int = None, interest_name: str = None):
     """
     Вызов названия/ID интереса
     :param id_interest: ID интереса
@@ -290,6 +302,7 @@ def get_interest(id_interest: int = None, interest_name : str = None):
         logger.error(f'Ошибка при получении интереса: {e}')
         raise ValueError(f'Ошибка при получении интереса: {e}')
 
+
 def add_interest(interest_name: str):
     """
     Добавление интереса в БД
@@ -306,6 +319,7 @@ def add_interest(interest_name: str):
     except Exception as e:
         logger.error(f'Ошибка при сохранении интереса: {e}')
         raise ValueError(f'Ошибка при сохранении интереса: {e}')
+
 
 def get_user_interest(user_id: int):
     """
@@ -325,6 +339,7 @@ def get_user_interest(user_id: int):
     except Exception as e:
         logger.error(f'Ошибка при получении интересов пользователя: {e}')
         raise ValueError(f'Ошибка при получении интересов пользователя: {e}')
+
 
 def add_user_interest(user_id: int, id_interest: int = None,
                       interest_name: str = None):
@@ -350,7 +365,7 @@ def add_user_interest(user_id: int, id_interest: int = None,
             interest_name = get_interest(id_interest)
         old_interests = get_user_interest(user_id)
         if '😔' not in old_interests and interest_name in old_interests:
-            return  '⚠️ Данный интерес уже добавлен пользователю в БД'
+            return '⚠️ Данный интерес уже добавлен пользователю в БД'
         new_interest = UsersInterest(id_VK_user=user_id, id_interest=id_interest)
         session.add(new_interest)
         session.commit()
@@ -358,6 +373,7 @@ def add_user_interest(user_id: int, id_interest: int = None,
     except Exception as e:
         logger.error(f'Ошибка при сохранении интересов пользователя: {e}')
         raise ValueError(f'Ошибка при сохранении интереса пользователя: {e}')
+
 
 def find_match(user_id: int):
     """
@@ -388,7 +404,6 @@ def find_match(user_id: int):
         if not found_users:
             return '😔 Никого не нашлось. Попробуйте позже'
 
-
         # Составляем список из найденных пользователей со схожими интересами
         if '😔' in user_interests:
             interest_users = found_users
@@ -403,7 +418,7 @@ def find_match(user_id: int):
             return '😔 С Вашими интересами никого не нашлось. Попробуйте позже'
 
         # Сохраняем результат в БД
-        for found_user in interest_users: # Можно сохранить пользователей без учёта интересов заменив interest_users на found_users
+        for found_user in interest_users:  # Можно сохранить пользователей без учёта интересов заменив interest_users на found_users
             # проверяем наличие аналогичных записей, сделанных ранее
 
             match = session.query(Matches).filter(Matches.id_VK_user == user_id,
@@ -417,6 +432,7 @@ def find_match(user_id: int):
         logger.error(f'Ошибка при поиске совпадений: {e}')
         raise ValueError(f'Ошибка при поиске совпадений: {e}')
 
+
 def get_city(id_city: int = None, city_name: str = None) -> str:
     """
     Получение названия города по id
@@ -426,7 +442,7 @@ def get_city(id_city: int = None, city_name: str = None) -> str:
     """
     try:
         if id_city:
-            #city_name = session.get(City.city_name, id_city)
+            # city_name = session.get(City.city_name, id_city)
             city_name = session.query(City.id_city).filter_by(id_city=id_city).first()
             if city_name:
                 return city_name[0]
@@ -437,6 +453,7 @@ def get_city(id_city: int = None, city_name: str = None) -> str:
     except Exception as e:
         logger.error(f'Ошибка при получении города: {e}')
         raise ValueError(f'Ошибка при получении города: {e}')
+
 
 def add_city(id_city: int, city_name: str):
     """
@@ -458,6 +475,7 @@ def add_city(id_city: int, city_name: str):
     except Exception as e:
         logger.error(f'Ошибка при сохранении города: {e}')
         raise ValueError(f'Ошибка при сохранении города: {e}')
+
 
 def get_user_full_info(user_id: int):
     """
@@ -482,7 +500,6 @@ def get_user_full_info(user_id: int):
     except Exception as e:
         logger.error(f'Ошибка при получении полной информации о пользователе: {e}')
         raise ValueError(f'Ошибка при получении полной информации о пользователе: {e}')
-
 
 
 def test_bd():

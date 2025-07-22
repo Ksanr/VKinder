@@ -10,7 +10,9 @@ import requests
 import json
 from typing import List, Dict, Optional
 import logging
-from query import SessionLocal, get_user, create_new_user, update_user, get_favorites, add_favorite, get_blacklist, add_blacklist, get_photo, add_photo, get_match, add_match, get_interest, add_interest, get_user_interest, add_user_interest, find_match, get_user_full_info
+from query import SessionLocal, get_user, create_new_user, update_user, get_favorites, add_favorite, get_blacklist, \
+    add_blacklist, get_photo, add_photo, get_match, add_match, get_interest, add_interest, get_user_interest, \
+    add_user_interest, find_match, get_user_full_info
 from models import Gender
 
 # Загружаем переменные окружения
@@ -38,7 +40,7 @@ class VKinderBot:
     - Навигация между пользователями
     - Система избранного
     """
-    
+
     def __init__(self, group_token: str, user_token: str):
         """
         Инициализация бота
@@ -49,23 +51,23 @@ class VKinderBot:
         """
         self.group_token = group_token
         self.user_token = user_token
-        
+
         # Инициализация API для группы (отправка сообщений)
         self.vk_group = vk_api.VkApi(token=group_token)
         self.longpoll = VkLongPoll(self.vk_group)
-        
+
         # Инициализация API для пользователя (поиск людей)
         self.vk_user = vk_api.VkApi(token=user_token)
-        
+
         # Состояние пользователей бота
         self.user_sessions = {}
-        
+
         # Инициализация подключения к БД
         session = SessionLocal()
         # self.db = DatabaseManager()
-        
+
         logger.info("VKinder Bot инициализирован")
-    
+
     def create_keyboard(self, buttons: List[Dict[str, str]]) -> dict:
         """
         Создает клавиатуру с кнопками
@@ -77,20 +79,20 @@ class VKinderBot:
             JSON строка клавиатуры
         """
         keyboard = VkKeyboard(one_time=True)
-        
+
         for i, button in enumerate(buttons):
             if i > 0 and i % 2 == 0:  # Новая строка каждые 2 кнопки
                 keyboard.add_line()
-            
+
             color = getattr(VkKeyboardColor, button.get('color', 'PRIMARY'))
             keyboard.add_button(
                 button['text'],
                 color=color,
                 payload=json.dumps(button.get('payload', button['text']))
             )
-        
+
         return keyboard.get_keyboard()
-    
+
     def get_user_info(self, user_id: int) -> Dict:
         """
         Получает информацию о пользователе
@@ -106,7 +108,7 @@ class VKinderBot:
                 'user_ids': user_id,
                 'fields': 'city,age,sex,bdate'
             })[0]
-            
+
             return {
                 'id': user_info.get('id', 0),
                 'first_name': user_info.get('first_name', 'Скрыто'),
@@ -118,7 +120,7 @@ class VKinderBot:
         except Exception as e:
             logger.error(f"Ошибка получения информации о пользователе {user_id}: {e}")
             return
-    
+
     def _calculate_age(self, bdate: str) -> int:
         """
         Вычисляет возраст по дате рождения
@@ -131,7 +133,7 @@ class VKinderBot:
         """
         if not bdate or bdate.count('.') < 2:
             return 0
-        
+
         try:
             from datetime import datetime
             birth_date = datetime.strptime(bdate, '%d.%m.%Y')
@@ -139,7 +141,7 @@ class VKinderBot:
             return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
         except:
             return 0
-    
+
     def search_users(self, city_id: int, age_from: int, age_to: int, sex: int, count: int = 20) -> List[Dict]:
         """
         Поиск пользователей по критериям
@@ -164,7 +166,7 @@ class VKinderBot:
                 'count': count,
                 'fields': 'city,age,sex,bdate'
             })
-            
+
             users = []
             for user in results['items']:
                 if not user.get('is_closed', False):  # Только открытые профили
@@ -176,14 +178,14 @@ class VKinderBot:
                         'age': self._calculate_age(user.get('bdate', '')),
                         'profile_url': f"https://vk.com/id{user['id']}"
                     })
-            
+
             logger.info(f"Найдено пользователей: {len(users)}")
             return users
-            
+
         except Exception as e:
             logger.error(f"Ошибка поиска пользователей: {e}")
             return []
-    
+
     def get_popular_photos(self, user_id: int, count: int = 3) -> List[Dict]:
         """
         Получает самые популярные фотографии пользователя
@@ -202,17 +204,17 @@ class VKinderBot:
                 'extended': 1,
                 'count': 200  # Получаем больше фото для анализа
             })
-            
+
             if not photos['items']:
                 return []
-            
+
             # Сортируем по количеству лайков
             sorted_photos = sorted(
                 photos['items'],
                 key=lambda x: x.get('likes', {}).get('count', 0),
                 reverse=True
             )
-            
+
             popular_photos = []
             for photo in sorted_photos[:count]:
                 # Получаем URL максимального размера
@@ -226,13 +228,13 @@ class VKinderBot:
                         'likes': photo.get('likes', {}).get('count', 0),
                         'attachment': f"photo{photo['owner_id']}_{photo['id']}"
                     })
-            
+
             return popular_photos
-            
+
         except Exception as e:
             logger.error(f"Ошибка получения фотографий пользователя {user_id}: {e}")
             return []
-    
+
     def send_user_profile(self, user_id: int, user_profile: Dict, photos: List[Dict]):
         """
         Отправляет профиль пользователя в чат
@@ -289,7 +291,7 @@ class VKinderBot:
         try:
             # Сохранение в БД
             message = add_favorite(user_id, target_user.id_VK_user)
-            
+
             # Создаем клавиатуру с кнопками
             keyboard_buttons = [
                 {'text': '➡️ Следующий', 'color': 'PRIMARY', 'payload': 'next_user'},
@@ -310,7 +312,7 @@ class VKinderBot:
 
         except Exception as e:
             logger.error(f"Ошибка добавления в избранное: {e}")
-    
+
     def show_favorites(self, user_id: int):
         """
         Показывает список избранных пользователей
@@ -321,7 +323,7 @@ class VKinderBot:
         try:
             # Получение из БД
             favorites = get_favorites(user_id)
-            
+
             if isinstance(favorites, str):
                 message = "📋 Ваш список избранного пуст"
             else:
@@ -340,7 +342,7 @@ class VKinderBot:
             keyboard = self.create_keyboard(keyboard_buttons)
 
             self.send_message(user_id, message, keyboard)
-            
+
         except Exception as e:
             logger.error(f"Ошибка показа избранного: {e}")
 
@@ -425,15 +427,15 @@ class VKinderBot:
                 'message': message,
                 'random_id': get_random_id()
             }
-            
+
             if keyboard:
                 params['keyboard'] = keyboard
-            
+
             self.vk_group.method('messages.send', params)
-            
+
         except Exception as e:
             logger.error(f"Ошибка отправки сообщения: {e}")
-    
+
     def start_search(self, user_id: int):
         """
         Поиск пользователей в БД
@@ -484,7 +486,7 @@ class VKinderBot:
 
             current_user = get_user(match.id_target_user)
             photos = get_photo(match.id_target_user)
-            self.user_sessions[user_id]={
+            self.user_sessions[user_id] = {
                 'current_user': current_user
             }
 
@@ -515,7 +517,7 @@ class VKinderBot:
 
                 photos = self.get_popular_photos(user_id)
                 for photo in photos:
-                    add_photo(user_id, photo['url'], photo['likes'], photo['attachment'],False)
+                    add_photo(user_id, photo['url'], photo['likes'], photo['attachment'], False)
 
             # Обработка команд
             if message == '/start' or message == 'начать':
@@ -531,16 +533,16 @@ class VKinderBot:
 
 Нажмите кнопку ниже, чтобы начать поиск!
                 """
-                
+
                 keyboard_buttons = [
                     {'text': '🔍 Начать поиск', 'color': 'POSITIVE', 'payload': 'start_search'},
                     {'text': '❤️ Избранное', 'color': 'SECONDARY', 'payload': 'show_favorites'},
                     {'text': '🔕 Черный список', 'color': 'SECONDARY', 'payload': 'show_blacklist'}
                 ]
-                
+
                 keyboard = self.create_keyboard(keyboard_buttons)
                 self.send_message(user_id, welcome_message, keyboard)
-                
+
             elif message == '/favorites':
                 self.show_favorites(user_id)
 
@@ -566,14 +568,14 @@ class VKinderBot:
 ❗ Примечание: Для работы бота требуется открытый профиль ВКонтакте.
                 """
                 self.send_message(user_id, help_message)
-                
+
             else:
                 # Обработка нераспознанных команд
                 self.send_message(user_id, "❓ Команда не распознана. Используйте /help для получения списка команд.")
-                
+
         except Exception as e:
             logger.error(f"Ошибка обработки сообщения: {e}")
-    
+
     def handle_button_click(self, event):
         """
         Обработчик нажатий на кнопки
@@ -584,13 +586,13 @@ class VKinderBot:
         try:
             user_id = event.user_id
             payload = json.loads(event.payload)
-            
+
             if payload == 'start_search':
                 self.start_search(user_id)
-                
+
             elif payload == 'next_user':
                 self.show_next_user(user_id)
-                
+
             elif payload == 'add_favorite':
                 user_session = self.user_sessions.get(user_id)
                 if user_session and 'current_user' in user_session:
@@ -610,19 +612,19 @@ class VKinderBot:
 
             elif payload == 'show_blacklist':
                 self.show_blacklist(user_id)
-                
+
             elif payload == 'new_search':
                 self.start_search(user_id)
-                
+
         except Exception as e:
             logger.error(f"Ошибка обработки нажатия кнопки: {e}")
-    
+
     def run(self):
         """
         Запуск бота
         """
         logger.info("Запуск VKinder Bot...")
-        
+
         try:
             for event in self.longpoll.listen():
                 if event.type == VkEventType.MESSAGE_NEW and event.to_me:
@@ -632,7 +634,7 @@ class VKinderBot:
                     else:
                         # Обработка текстовых сообщений
                         self.handle_message(event)
-                        
+
         except KeyboardInterrupt:
             logger.info("Бот остановлен пользователем")
         except Exception as e:
@@ -646,11 +648,11 @@ def main():
     # Получаем токены из переменных окружения
     GROUP_TOKEN = os.getenv('VK_GROUP_TOKEN')
     USER_TOKEN = os.getenv('VK_USER_TOKEN')
-    
+
     if not GROUP_TOKEN or not USER_TOKEN:
         logger.error("Отсутствуют токены VK. Установите переменные окружения VK_GROUP_TOKEN и VK_USER_TOKEN")
         return
-    
+
     # Создаем и запускаем бота
     bot = VKinderBot(GROUP_TOKEN, USER_TOKEN)
     bot.run()
