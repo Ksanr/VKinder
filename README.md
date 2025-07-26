@@ -5,10 +5,6 @@
 
 .env - файл с настройками для подключений:
 
-* VK_GROUP_TOKEN=Токен_группы_для_вашего_бота
-* VK_USER_TOKEN=Токен_пользователя_для_вашего_бота
-* DB_URL=postgresql://user:password@host/database
-
 models.py - структура БД
 
 bot.py - бот ВК (работает с БД ВК, без привязки к models)
